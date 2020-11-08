@@ -1,60 +1,71 @@
 import React, { useState } from "react";
 import ReactDOM from "react-dom";
 import "./index.css";
+import calculateWinner from "./functions/calculateWinner";
+import html2canvas from "html2canvas";
+import { saveAs } from "file-saver";
 
 function Square({ value, onClick }) {
+  let chess;
+  if (value === "X") {
+    chess = <div className={"black "}></div>;
+  } else if (value === "O") {
+    chess = <div className={"white "}></div>;
+  }
   return (
     <button className="square" onClick={() => onClick()}>
-      {value}
+      {chess}
     </button>
   );
 }
 
 function Board(props) {
-  function renderSquare(i) {
-    return <Square value={props.squares[i]} onClick={() => props.onClick(i)} />;
+  function renderSquare(rowNum, i) {
+    return (
+      <Square
+        value={props.squares[rowNum][i]}
+        onClick={() => props.onClick(rowNum, i)}
+      />
+    );
   }
 
-  return (
-    <div>
-      <div className="board-row">
-        {renderSquare(0)}
-        {renderSquare(1)}
-        {renderSquare(2)}
-      </div>
-      <div className="board-row">
-        {renderSquare(3)}
-        {renderSquare(4)}
-        {renderSquare(5)}
-      </div>
-      <div className="board-row">
-        {renderSquare(6)}
-        {renderSquare(7)}
-        {renderSquare(8)}
-      </div>
-    </div>
-  );
+  function renderRows() {
+    const rows = [];
+    for (let i = 0; i < 19; i++) {
+      const col = [];
+      for (let j = 0; j < 19; j++) {
+        col.push(renderSquare(i, j));
+      }
+      rows.push(<div className="board-row">{col}</div>);
+    }
+    return rows;
+  }
+
+  return <div>{renderRows()}</div>;
 }
+let x = 0,
+  y = 0;
 
 function Game() {
   const [state, setState] = useState({
     history: [
       {
-        squares: Array(9).fill(null),
+        squares: Array(19).fill(Array(19).fill(null)),
       },
     ],
     stepNumber: 0,
     xIsNet: true,
   });
-
-  function handkeClick(i) {
+  function handkeClick(j, i) {
     const history = state.history.slice(0, state.stepNumber + 1);
     const current = history[history.length - 1];
-    const newSquares = current.squares.slice();
-    if (calculateWinner(newSquares) || newSquares[i]) {
+    const newSquares = JSON.parse(JSON.stringify(current.squares));
+    if (winner || newSquares[j][i]) {
       return;
     }
-    newSquares[i] = state.xIsNet ? "X" : "O";
+    newSquares[j][i] = state.xIsNet ? "X" : "O";
+    x = j;
+    y = i;
     setState({
       history: history.concat([
         {
@@ -76,57 +87,73 @@ function Game() {
 
   const history = state.history;
   const current = history[state.stepNumber];
-  const winner = calculateWinner(current.squares);
-
+  const winner = calculateWinner(current.squares, x, y);
   const moves = history.map((step, move) => {
-    const desc = move ? "Go to move #" + move : "Go to game start";
+    const desc = move ? "回到第 #" + move + " 步" : "回到起始點";
     return (
       <li key={move}>
         <button onClick={() => jumpTo(move)}>{desc}</button>
       </li>
     );
   });
-  let status;
 
+  function saveBoardStatus() {
+    const today = new Date();
+    const formattedToday = today.toISOString().slice(0, 10);
+    html2canvas(document.querySelector(".game-board")).then((canvas) => {
+      const myCanvas = canvas;
+      myCanvas.toBlob((blob) => {
+        saveAs(blob, `${formattedToday + status}.png`);
+      });
+    });
+  }
+
+  const saveBtn = (
+    <li key={state.stepNumber}>
+      <button
+        onClick={() => {
+          saveBoardStatus();
+        }}
+      >
+        儲存棋譜
+      </button>
+    </li>
+  );
+  let status;
   if (winner) {
-    status = "Winner: " + winner;
+    const winnerMark = state.xIsNet === false ? "黑" : "白";
+    status = "贏家: " + winnerMark;
   } else {
-    status = "Next player: " + (state.xIsNet ? "X" : "O");
+    status = "下一個玩家: " + (state.xIsNet ? "黑" : "白");
   }
 
   return (
-    <div className="game">
-      <div className="game-board">
-        <Board squares={current.squares} onClick={(i) => handkeClick(i)} />
+    <div className="container">
+      <header className="title">
+        <h3>Gomoku</h3>
+      </header>
+      <div className="game">
+        <div className="game-board">
+          <Board
+            squares={current.squares}
+            onClick={(rowNum, i) => handkeClick(rowNum, i)}
+          />
+        </div>
+        <div className="game-info">
+          <div>{status}</div>
+          <ol>{moves}</ol>
+        </div>
+        {winner ? (
+          <div className="game-info">
+            <ul>{saveBtn}</ul>
+          </div>
+        ) : null}
       </div>
-      <div className="game-info">
-        <div>{status}</div>
-        <ol>{moves}</ol>
-      </div>
+      <footer>
+        <div>Made By John ❤</div>
+      </footer>
     </div>
   );
 }
-
-function calculateWinner(squares) {
-  const lines = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6],
-  ];
-  for (let i = 0; i < lines.length; i++) {
-    const [a, b, c] = lines[i];
-    if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-      return squares[a];
-    }
-  }
-  return null;
-}
-
-// ========================================
 
 ReactDOM.render(<Game />, document.getElementById("root"));
